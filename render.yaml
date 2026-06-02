@@ -1,0 +1,23 @@
+services:
+  # FastAPI backend
+  - type: web
+    name: rag-chatbot-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # Celery worker
+  - type: worker
+    name: rag-chatbot-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && celery -A celery_app worker --loglevel=info --concurrency=1
+
+databases:
+  - name: rag-postgres
+    plan: free
+    databaseName: college_rag
+    user: rag_user
