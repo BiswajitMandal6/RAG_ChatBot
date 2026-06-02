@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Portal — College Assistant</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#f5f6fa;--surface:#fff;--primary:#4f46e5;--primary-dark:#3730a3;--text:#1e1e2e;--muted:#6b7280;--border:#e5e7eb;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,0.07)}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+    header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)}
+    .logo{width:34px;height:34px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+    header h1{font-size:16px;font-weight:600}
+    header p{font-size:12px;color:var(--muted)}
+    .header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+    .btn-sm{padding:6px 14px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .2s}
+    .btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+    .btn-outline{background:none;border:1px solid var(--border);color:var(--text)}.btn-outline:hover{background:var(--bg)}
+    .btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+
+    .main{max-width:1100px;margin:0 auto;padding:28px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:20px;box-shadow:var(--shadow)}
+    .card h2{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .full-width{grid-column:1/-1}
+
+    /* Stats row */
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;grid-column:1/-1}
+    .stat-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:18px;text-align:center;box-shadow:var(--shadow)}
+    .stat-val{font-size:28px;font-weight:700;color:var(--primary)}
+    .stat-label{font-size:12px;color:var(--muted);margin-top:4px}
+
+    /* Upload */
+    .upload-zone{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:12px}
+    .upload-zone:hover{border-color:var(--primary);background:#f5f3ff}
+    .upload-zone p{font-size:13px;color:var(--muted);margin-top:6px}
+    #file-input{display:none}
+    select.field-select,input.field-input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:10px;font-family:inherit}
+
+    /* Tables */
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+    td{padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#fafafa}
+    .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+    .badge-blue{background:#e0e7ff;color:#3730a3}
+    .badge-green{background:#dcfce7;color:#166534}
+    .badge-amber{background:#fef3c7;color:#92400e}
+    .badge-red{background:#fee2e2;color:#991b1b}
+    .del-btn{background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;padding:3px 7px;border-radius:5px}
+    .del-btn:hover{background:#fee2e2}
+
+    /* Chart bars */
+    .bar-chart{display:flex;gap:6px;align-items:flex-end;height:80px;margin-top:8px}
+    .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+    .bar{width:100%;background:var(--primary);border-radius:4px 4px 0 0;min-height:4px;opacity:.85;transition:opacity .2s}
+    .bar:hover{opacity:1}
+    .bar-label{font-size:9px;color:var(--muted)}
+    .bar-val{font-size:10px;color:var(--primary);font-weight:600}
+
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1e2e;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+    #toast.show{opacity:1}
+    .empty{font-size:13px;color:var(--muted);padding:16px 0;text-align:center}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚙️</div>
+  <div><h1>Admin Portal</h1><p>Faculty dashboard — College Assistant</p></div>
+  <div class="header-right">
+    <span id="faculty-name" style="font-size:13px;color:var(--muted)"></span>
+    <a href="/" class="btn-sm btn-outline">← Chat</a>
+    <button class="btn-sm btn-outline" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Stats cards -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val" id="s-total">—</div><div class="stat-label">Total queries (7d)</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-cache">—</div><div class="stat-label">Cache hit rate</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-docs">—</div><div class="stat-label">Documents ingested</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-users">—</div><div class="stat-label">Registered users</div></div>
+  </div>
+
+  <!-- Upload document -->
+  <div class="card">
+    <h2>📤 Upload Document</h2>
+    <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:24px">📄</div>
+      <strong id="file-label" style="font-size:13px">Drop PDF or click to browse</strong>
+      <p id="file-size"></p>
+      <input type="file" id="file-input" accept=".pdf"/>
+    </div>
+    <select class="field-select" id="doc-type">
+      <option value="general">General</option>
+      <option value="syllabus">Syllabus</option>
+      <option value="lecture_notes">Lecture Notes</option>
+      <option value="question_paper">Question Paper</option>
+      <option value="timetable">Timetable</option>
+      <option value="notice">Notice</option>
+      <option value="lab_manual">Lab Manual</option>
+      <option value="faculty_info">Faculty Info</option>
+    </select>
+    <button class="btn-sm btn-primary" id="upload-btn" onclick="uploadDoc()" disabled style="width:100%;padding:10px">Upload & Ingest</button>
+  </div>
+
+  <!-- Query activity chart -->
+  <div class="card">
+    <h2>📊 Query Activity (7 days)</h2>
+    <div class="bar-chart" id="bar-chart"><p class="empty">Loading...</p></div>
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">Hover bars to see daily totals</div>
+  </div>
+
+  <!-- Documents table -->
+  <div class="card full-width">
+    <h2>📁 Ingested Documents <button class="btn-sm btn-outline" style="margin-left:auto;font-size:11px" onclick="clearCache()">Clear Cache</button></h2>
+    <table>
+      <thead><tr><th>Filename</th><th>Type</th><th>Chunks</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead>
+      <tbody id="docs-tbody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Recent questions -->
+  <div class="card full-width">
+    <h2>💬 Recent Student Questions</h2>
+    <table>
+      <thead><tr><th>Question</th><th>Student</th><th>Cache</th><th>Time</th></tr></thead>
+      <tbody id="questions-tbody"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Users -->
+  <div class="card full-width">
+    <h2>👥 Registered Users</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+      <tbody id="users-tbody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API  = 'http://127.0.0.1:8000';
+const token = localStorage.getItem('token');
+const role  = localStorage.getItem('role');
+
+// Guard: only faculty can access this page
+if (!token || role !== 'faculty') {
+  alert('Faculty access required. Please log in as faculty.');
+  location.href = '/';
+}
+
+document.getElementById('faculty-name').textContent = localStorage.getItem('name') || '';
+
+function authH() { return {'Content-Type':'application/json','Authorization':`Bearer ${token}`}; }
+function logout() { localStorage.clear(); location.href = '/'; }
+function showToast(m,ms=3000){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
+
+// ── Stats ─────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const res  = await fetch(`${API}/admin/stats?days=7`, {headers:authH()});
+  const data = await res.json();
+  document.getElementById('s-total').textContent = data.total_queries;
+  document.getElementById('s-cache').textContent = data.cache_hit_rate + '%';
+
+  // Bar chart
+  const chart = document.getElementById('bar-chart');
+  if (!data.daily?.length) { chart.innerHTML='<p class="empty">No data yet.</p>'; return; }
+  const max = Math.max(...data.daily.map(d=>d.total_queries), 1);
+  chart.innerHTML = [...data.daily].reverse().map(d=>`
+    <div class="bar-wrap" title="${d.date}: ${d.total_queries} queries">
+      <div class="bar-val">${d.total_queries}</div>
+      <div class="bar" style="height:${Math.max(d.total_queries/max*70,4)}px"></div>
+      <div class="bar-label">${d.date.slice(5)}</div>
+    </div>`).join('');
+}
+
+// ── Documents ─────────────────────────────────────────────────────────────
+async function loadDocs() {
+  const res  = await fetch(`${API}/admin/documents`, {headers:authH()});
+  const data = await res.json();
+  document.getElementById('s-docs').textContent = data.length;
+  const tb = document.getElementById('docs-tbody');
+  if (!data.length) { tb.innerHTML='<tr><td colspan="6" class="empty">No documents yet.</td></tr>'; return; }
+  tb.innerHTML = data.map(d=>`
+    <tr>
+      <td>📄 ${d.filename}</td>
+      <td><span class="badge badge-blue">${d.doc_type}</span></td>
+      <td>${d.chunks}</td>
+      <td>${d.uploaded_by}</td>
+      <td>${new Date(d.uploaded_at).toLocaleDateString()}</td>
+      <td><button class="del-btn" onclick="deleteDoc('${d.filename}')">✕ Delete</button></td>
+    </tr>`).join('');
+}
+
+async function deleteDoc(filename) {
+  if (!confirm(`Delete "${filename}"? This also clears the semantic cache.`)) return;
+  const res = await fetch(`${API}/admin/documents/${encodeURIComponent(filename)}`, {method:'DELETE',headers:authH()});
+  const data = await res.json();
+  showToast(`🗑️ ${data.message}`);
+  loadDocs();
+}
+
+// ── Recent questions ───────────────────────────────────────────────────────
+async function loadQuestions() {
+  const res  = await fetch(`${API}/admin/recent-questions?limit=15`, {headers:authH()});
+  const data = await res.json();
+  const tb   = document.getElementById('questions-tbody');
+  if (!data.length) { tb.innerHTML='<tr><td colspan="4" class="empty">No questions yet.</td></tr>'; return; }
+  tb.innerHTML = data.map(q=>`
+    <tr>
+      <td>${q.question.substring(0,80)}${q.question.length>80?'...':''}</td>
+      <td>${q.user}</td>
+      <td>${q.cache_hit?'<span class="badge badge-green">⚡ cached</span>':'<span class="badge badge-amber">live</span>'}</td>
+      <td>${new Date(q.asked_at).toLocaleString()}</td>
+    </tr>`).join('');
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const res  = await fetch(`${API}/admin/users`, {headers:authH()});
+  const data = await res.json();
+  document.getElementById('s-users').textContent = data.length;
+  const tb   = document.getElementById('users-tbody');
+  if (!data.length) { tb.innerHTML='<tr><td colspan="6" class="empty">No users yet.</td></tr>'; return; }
+  tb.innerHTML = data.map(u=>`
+    <tr>
+      <td>${u.name}</td>
+      <td>${u.email}</td>
+      <td><span class="badge ${u.role==='faculty'?'badge-blue':'badge-green'}">${u.role}</span></td>
+      <td><span class="badge ${u.is_active?'badge-green':'badge-red'}">${u.is_active?'Active':'Inactive'}</span></td>
+      <td>${new Date(u.created_at).toLocaleDateString()}</td>
+      <td><button class="btn-sm btn-outline" style="font-size:11px" onclick="toggleUser('${u.id}','${u.is_active}')">${u.is_active?'Deactivate':'Activate'}</button></td>
+    </tr>`).join('');
+}
+
+async function toggleUser(id, currentActive) {
+  await fetch(`${API}/admin/users/${id}/toggle`, {method:'PATCH',headers:authH()});
+  showToast(currentActive==='true'?'User deactivated':'User activated');
+  loadUsers();
+}
+
+// ── File upload ───────────────────────────────────────────────────────────
+let selectedFile = null;
+document.getElementById('file-input').addEventListener('change', function(){
+  if(this.files[0]) setFile(this.files[0]);
+});
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e=>{e.preventDefault();dz.style.borderColor='var(--primary)';});
+dz.addEventListener('dragleave', ()=>dz.style.borderColor='');
+dz.addEventListener('drop', e=>{
+  e.preventDefault();dz.style.borderColor='';
+  const f=e.dataTransfer.files[0];
+  if(f&&f.name.endsWith('.pdf'))setFile(f);else showToast('Only PDF files supported.');
+});
+function setFile(f){
+  selectedFile=f;
+  document.getElementById('file-label').textContent=f.name;
+  document.getElementById('file-size').textContent=(f.size/1024).toFixed(1)+' KB';
+  document.getElementById('upload-btn').disabled=false;
+}
+async function uploadDoc(){
+  if(!selectedFile)return;
+  const btn=document.getElementById('upload-btn');
+  btn.disabled=true;btn.textContent='Uploading...';
+  const form=new FormData();
+  form.append('file',selectedFile);
+  form.append('doc_type',document.getElementById('doc-type').value);
+  try{
+    const res=await fetch(`${API}/admin/documents/upload`,{method:'POST',headers:{'Authorization':`Bearer ${token}`},body:form});
+    const data=await res.json();
+    if(res.ok){
+      showToast(`✅ ${data.details.file} — ${data.details.chunks_stored} chunks ingested`);
+      selectedFile=null;
+      document.getElementById('file-label').textContent='Drop PDF or click to browse';
+      document.getElementById('file-size').textContent='';
+      document.getElementById('file-input').value='';
+      loadDocs();
+    } else { showToast('❌ '+( data.detail||'Upload failed')); }
+  }catch{showToast('❌ Server unreachable.');}
+  btn.textContent='Upload & Ingest';
+}
+
+// ── Cache clear ───────────────────────────────────────────────────────────
+async function clearCache(){
+  if(!confirm('Clear the semantic cache? Students will get fresh answers.'))return;
+  await fetch(`${API}/admin/cache`,{method:'DELETE',headers:authH()});
+  showToast('🗑️ Semantic cache cleared.');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadStats();
+loadDocs();
+loadQuestions();
+loadUsers();
+setInterval(()=>{loadStats();loadQuestions();}, 30000);
+</script>
+</body>
+</html>

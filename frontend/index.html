@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>College Assistant</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#f5f6fa;--surface:#fff;--primary:#4f46e5;--primary-dark:#3730a3;--text:#1e1e2e;--muted:#6b7280;--border:#e5e7eb;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,0.08)}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column}
+
+    /* Auth */
+    #auth-overlay{position:fixed;inset:0;background:rgba(15,15,35,0.72);display:flex;align-items:center;justify-content:center;z-index:100}
+    .auth-card{background:var(--surface);border-radius:16px;padding:36px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,0.18)}
+    .auth-card h1{font-size:22px;font-weight:600;margin-bottom:4px}
+    .auth-card p{font-size:13px;color:var(--muted);margin-bottom:24px}
+    .auth-tabs{display:flex;margin-bottom:24px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+    .auth-tab{flex:1;padding:9px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;transition:background .2s}
+    .auth-tab.active{background:var(--primary);color:#fff}
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:12px;font-weight:500;margin-bottom:5px;color:var(--muted)}
+    .field input,.field select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit;transition:border-color .2s}
+    .field input:focus{border-color:var(--primary)}
+    .auth-btn{width:100%;padding:11px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px}
+    .auth-btn:hover{background:var(--primary-dark)}
+    .auth-err{color:#ef4444;font-size:12px;margin-top:8px;display:none}
+
+    /* Header */
+    header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);z-index:10}
+    .logo{width:34px;height:34px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+    header h1{font-size:16px;font-weight:600}
+    header p{font-size:12px;color:var(--muted)}
+    #user-info{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
+    #admin-link{color:var(--primary);font-size:12px;padding:4px 10px;border:1px solid var(--primary);border-radius:6px;text-decoration:none}
+    #logout-btn{padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;font-size:12px}
+    select.hdr-sel{padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)}
+
+    /* Layout */
+    .layout{display:flex;flex:1;overflow:hidden}
+
+    /* Sidebar */
+    aside{width:256px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px;gap:10px;overflow-y:auto}
+    aside h2{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+    /* URL crawl box */
+    .crawl-box{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg)}
+    .crawl-box label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:6px}
+    .crawl-row{display:flex;gap:6px}
+    .crawl-row input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit;min-width:0}
+    .crawl-row input:focus{border-color:var(--primary)}
+    .crawl-btn{padding:8px 12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+    .crawl-btn:hover{background:var(--primary-dark)}
+    .crawl-btn:disabled{background:#a5b4fc;cursor:not-allowed}
+    .crawl-progress{margin-top:8px;font-size:12px;color:var(--muted);display:none}
+    .crawl-progress.show{display:block}
+    .progress-bar{height:4px;background:#e0e7ff;border-radius:2px;margin-top:4px;overflow:hidden}
+    .progress-fill{height:100%;background:var(--primary);border-radius:2px;animation:progress-anim 1.5s ease-in-out infinite}
+    @keyframes progress-anim{0%{width:0%}50%{width:70%}100%{width:100%}}
+
+    /* Doc/history items */
+    #doc-list,#history-list{display:flex;flex-direction:column;gap:5px}
+    .doc-item{padding:8px 10px;background:var(--bg);border-radius:8px;font-size:12px}
+    .doc-item.web-item{border-left:3px solid #06b6d4}
+    .doc-name{font-weight:500;word-break:break-all}
+    .doc-meta{color:var(--muted);font-size:11px;margin-top:2px}
+
+    /* Chat */
+    .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    #messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+    .welcome{text-align:center;margin:auto;color:var(--muted)}
+    .welcome .icon{font-size:44px;margin-bottom:10px}
+    .welcome h2{font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px}
+    .welcome p{font-size:13px;line-height:1.6}
+    .message{display:flex;gap:10px;max-width:82%}
+    .message.user{align-self:flex-end;flex-direction:row-reverse}
+    .message.bot{align-self:flex-start}
+    .avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+    .user .avatar{background:var(--primary);color:#fff}
+    .bot  .avatar{background:#e0e7ff;color:var(--primary)}
+    .bubble{padding:11px 15px;border-radius:14px;font-size:14px;line-height:1.6}
+    .user .bubble{background:var(--primary);color:#fff;border-bottom-right-radius:4px}
+    .bot  .bubble{background:#f3f4f6;color:var(--text);border-bottom-left-radius:4px}
+    .citations{margin-top:6px;padding:7px 11px;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;font-size:12px;color:#92400e}
+    .citations strong{display:block;margin-bottom:3px}
+
+    /* URL detection banner */
+    .url-banner{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin:0 20px;font-size:13px;display:none;align-items:center;gap:10px}
+    .url-banner.show{display:flex}
+    .url-banner span{flex:1;color:#1e40af}
+    .url-banner button{padding:5px 12px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:500}
+    .url-crawl-btn{background:var(--primary);color:#fff}
+    .url-dismiss-btn{background:none;color:var(--muted);border:1px solid var(--border) !important}
+
+    /* Typing dots */
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bounce 1.2s infinite;display:inline-block;margin:0 2px}
+    .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
+
+    /* Input */
+    .input-bar{padding:12px 20px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end}
+    #question-input{flex:1;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px;resize:none;outline:none;font-family:inherit;line-height:1.5;max-height:120px;transition:border-color .2s}
+    #question-input:focus{border-color:var(--primary)}
+    #send-btn{width:42px;height:42px;background:var(--primary);border:none;border-radius:10px;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s}
+    #send-btn:hover{background:var(--primary-dark)}
+    #send-btn:disabled{background:#a5b4fc;cursor:not-allowed}
+
+    #toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1e1e2e;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+    #toast.show{opacity:1}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  </style>
+</head>
+<body>
+
+<!-- Auth Overlay -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <h1>🎓 College Assistant</h1>
+    <p>Sign in to access your college chatbot</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+      <button class="auth-tab" onclick="switchTab('register')">Register</button>
+    </div>
+    <div id="login-form">
+      <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="you@college.edu"/></div>
+      <div class="field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••"/></div>
+      <button class="auth-btn" onclick="login()">Login</button>
+      <div class="auth-err" id="login-err"></div>
+    </div>
+    <div id="register-form" style="display:none">
+      <div class="field"><label>Full Name</label><input type="text" id="reg-name" placeholder="Your name"/></div>
+      <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="you@college.edu"/></div>
+      <div class="field"><label>Password</label><input type="password" id="reg-password" placeholder="••••••••"/></div>
+      <div class="field"><label>Role</label><select id="reg-role"><option value="student">Student</option><option value="faculty">Faculty</option></select></div>
+      <button class="auth-btn" onclick="register()">Create Account</button>
+      <div class="auth-err" id="reg-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">🎓</div>
+  <div><h1>College Assistant</h1><p>Ask anything about your courses or any website</p></div>
+  <select class="hdr-sel" id="filter-select" style="margin-left:auto">
+    <option value="">All sources</option>
+    <option value="syllabus">Syllabus</option>
+    <option value="lecture_notes">Lecture Notes</option>
+    <option value="question_paper">Question Papers</option>
+    <option value="timetable">Timetable</option>
+    <option value="notice">Notices</option>
+    <option value="lab_manual">Lab Manuals</option>
+    <option value="web">Web pages</option>
+  </select>
+  <div id="user-info">
+    <span id="user-name" style="font-weight:500"></span>
+    <a id="admin-link" href="/admin" style="display:none">Admin</a>
+    <button id="logout-btn" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside>
+    <!-- URL Crawler -->
+    <h2>🌐 Crawl Website</h2>
+    <div class="crawl-box">
+      <label>Paste any URL to learn from it</label>
+      <div class="crawl-row">
+        <input type="text" id="crawl-url-input" placeholder="https://example.com"/>
+        <button class="crawl-btn" id="crawl-btn" onclick="startCrawl()">Crawl</button>
+      </div>
+      <div class="crawl-progress" id="crawl-progress">
+        <span id="crawl-status-text">Crawling pages...</span>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+      </div>
+    </div>
+
+    <h2>📁 Documents</h2>
+    <div id="doc-list"><p style="font-size:12px;color:var(--muted)">Loading...</p></div>
+
+    <h2 style="margin-top:6px">💬 History</h2>
+    <div id="history-list"><p style="font-size:12px;color:var(--muted)">Loading...</p></div>
+  </aside>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <!-- URL detection banner (shown when user types a URL in chat) -->
+    <div class="url-banner" id="url-banner">
+      <span id="url-banner-text">URL detected</span>
+      <button class="url-crawl-btn" onclick="crawlDetectedUrl()">Crawl & Answer</button>
+      <button class="url-dismiss-btn" onclick="dismissBanner()">Dismiss</button>
+    </div>
+
+    <div id="messages">
+      <div class="welcome" id="welcome-msg">
+        <div class="icon">🤖</div>
+        <h2>Hello! I'm your College Assistant</h2>
+        <p>Ask about your courses, syllabus, or schedule.<br/>
+        You can also paste any website URL — I'll read it and answer questions about it.</p>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <textarea id="question-input" placeholder="Ask a question or paste a URL..." rows="1"></textarea>
+      <button id="send-btn">➤</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+let token    = localStorage.getItem('token');
+let userRole = localStorage.getItem('role');
+let userName = localStorage.getItem('name');
+let detectedUrl = null;
+let activeCrawlJob = null;
+
+const URL_RE = /https?:\/\/[^\s]+|www\.[^\s]+/i;
+
+if (token) showApp();
+
+function showApp() {
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('user-name').textContent = userName || '';
+  if (userRole === 'faculty') document.getElementById('admin-link').style.display = 'inline';
+  loadDocuments();
+  loadHistory();
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='register')));
+  document.getElementById('login-form').style.display    = tab==='login'?'':'none';
+  document.getElementById('register-form').style.display = tab==='register'?'':'none';
+}
+async function login() {
+  const email=document.getElementById('login-email').value.trim();
+  const password=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-err'); errEl.style.display='none';
+  try {
+    const res=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(!res.ok){errEl.textContent=data.detail||'Login failed';errEl.style.display='block';return;}
+    saveSession(data); showApp();
+  } catch{errEl.textContent='Cannot reach server.';errEl.style.display='block';}
+}
+async function register() {
+  const name=document.getElementById('reg-name').value.trim();
+  const email=document.getElementById('reg-email').value.trim();
+  const password=document.getElementById('reg-password').value;
+  const role=document.getElementById('reg-role').value;
+  const errEl=document.getElementById('reg-err'); errEl.style.display='none';
+  try {
+    const res=await fetch(`${API}/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password,role})});
+    const data=await res.json();
+    if(!res.ok){errEl.textContent=data.detail||'Registration failed';errEl.style.display='block';return;}
+    saveSession(data); showApp();
+  } catch{errEl.textContent='Cannot reach server.';errEl.style.display='block';}
+}
+function saveSession(d){token=d.access_token;userRole=d.role;userName=d.name;localStorage.setItem('token',token);localStorage.setItem('role',userRole);localStorage.setItem('name',userName);}
+function logout(){localStorage.clear();location.reload();}
+function authH(){return{'Content-Type':'application/json','Authorization':`Bearer ${token}`};}
+
+// ── Documents ─────────────────────────────────────────────────────────────
+async function loadDocuments() {
+  try {
+    const res=await fetch(`${API}/documents`);
+    const data=await res.json();
+    const el=document.getElementById('doc-list');
+    if(!data.documents?.length){el.innerHTML='<p style="font-size:12px;color:var(--muted)">No documents.</p>';return;}
+    el.innerHTML=data.documents.map(d=>`
+      <div class="doc-item ${d.source?.startsWith('web::') ? 'web-item':''}">
+        <div class="doc-name">${d.source?.startsWith('web::') ? '🌐' : '📄'} ${d.source}</div>
+        <div class="doc-meta">${d.doc_type} · ${d.chunks} chunks</div>
+      </div>`).join('');
+  } catch{}
+}
+
+// ── Chat history ──────────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const res=await fetch(`${API}/chat/history?limit=10`,{headers:authH()});
+    const data=await res.json();
+    const el=document.getElementById('history-list');
+    if(!data.length){el.innerHTML='<p style="font-size:12px;color:var(--muted)">No history.</p>';return;}
+    el.innerHTML=data.map(h=>`
+      <div class="doc-item" style="cursor:pointer" onclick="reask('${h.question.replace(/'/g,"\\'").replace(/\n/g,' ')}')">
+        <div class="doc-name" style="font-size:11px">${h.question.substring(0,55)}${h.question.length>55?'...':''}</div>
+        <div class="doc-meta">${h.cache_hit?'⚡ cached':''} ${new Date(h.created_at).toLocaleDateString()}</div>
+      </div>`).join('');
+  } catch{}
+}
+function reask(q){document.getElementById('question-input').value=q;document.getElementById('question-input').focus();}
+
+// ── URL detection in chat input ───────────────────────────────────────────
+document.getElementById('question-input').addEventListener('input', function() {
+  // Auto-resize
+  this.style.height='auto';
+  this.style.height=Math.min(this.scrollHeight,120)+'px';
+
+  // Detect URL
+  const val = this.value;
+  const match = URL_RE.exec(val);
+  if (match) {
+    detectedUrl = match[0];
+    document.getElementById('url-banner-text').textContent = `🌐 URL detected: ${detectedUrl.substring(0,50)}${detectedUrl.length>50?'...':''}`;
+    document.getElementById('url-banner').classList.add('show');
+  } else {
+    detectedUrl = null;
+    document.getElementById('url-banner').classList.remove('show');
+  }
+});
+
+document.getElementById('question-input').addEventListener('keydown', e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+});
+
+function dismissBanner(){
+  document.getElementById('url-banner').classList.remove('show');
+  detectedUrl=null;
+}
+
+// ── Crawl from banner (URL typed in chat) ─────────────────────────────────
+async function crawlDetectedUrl() {
+  if (!detectedUrl) return;
+  const url = detectedUrl;
+  dismissBanner();
+  document.getElementById('question-input').value = '';
+  appendMessage('user', `🌐 Crawl this website: ${url}`);
+  await doCrawl(url);
+}
+
+// ── Crawl from sidebar ────────────────────────────────────────────────────
+async function startCrawl() {
+  const url = document.getElementById('crawl-url-input').value.trim();
+  if (!url) { showToast('Please enter a URL.'); return; }
+  await doCrawl(url);
+  document.getElementById('crawl-url-input').value = '';
+}
+
+async function doCrawl(url) {
+  const btn      = document.getElementById('crawl-btn');
+  const progress = document.getElementById('crawl-progress');
+  const statusTxt= document.getElementById('crawl-status-text');
+
+  btn.disabled = true;
+  progress.classList.add('show');
+  statusTxt.textContent = `Starting crawl for ${url}...`;
+
+  const typing = addTyping();
+
+  try {
+    const res  = await fetch(`${API}/crawl`, {
+      method:'POST', headers:authH(),
+      body: JSON.stringify({url})
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      typing.remove();
+      appendMessage('bot', `❌ Crawl failed: ${data.detail || 'Unknown error'}`);
+      return;
+    }
+
+    const jobId = data.job_id;
+    statusTxt.textContent = 'Crawling pages...';
+
+    // Poll for completion
+    await pollCrawlStatus(jobId, typing, statusTxt);
+
+  } catch(e) {
+    typing.remove();
+    appendMessage('bot', '❌ Cannot reach server.');
+  } finally {
+    btn.disabled = false;
+    progress.classList.remove('show');
+  }
+}
+
+async function pollCrawlStatus(jobId, typingEl, statusTxt) {
+  const maxAttempts = 300;  // 2 min max
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const res  = await fetch(`${API}/crawl/status/${jobId}`, {headers:authH()});
+      const data = await res.json();
+
+      if (data.status === 'done') {
+        typingEl.remove();
+        const r = data.result;
+        appendMessage('bot',
+          `✅ Website crawled successfully!\n\n` +
+          `🌐 Domain: ${r.domain}\n` +
+          `📄 Pages scraped: ${r.pages_scraped}\n` +
+          `🧩 Chunks stored: ${r.chunks_stored}\n\n` +
+          `You can now ask me anything about this website!`
+        );
+        loadDocuments();
+        showToast(`✅ ${r.domain} — ${r.chunks_stored} chunks ingested`);
+        return;
+      }
+
+      if (data.status === 'failed') {
+        typingEl.remove();
+        appendMessage('bot', `❌ Crawl failed: ${data.result?.error || 'Unknown error'}`);
+        return;
+      }
+
+      statusTxt.textContent = `Crawling... (${i * 2}s elapsed)`;
+    } catch { break; }
+  }
+  typingEl.remove();
+  appendMessage('bot', '⏱️ Crawl is taking longer than expected. Check back in a moment.');
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────
+function appendMessage(role, content, citations=[]) {
+  const w = document.getElementById('welcome-msg');
+  if (w) w.remove();
+  const wrap   = document.createElement('div');
+  wrap.className = `message ${role}`;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role==='user'?'👤':'🤖';
+  const right  = document.createElement('div');
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.style.whiteSpace = 'pre-wrap';
+  bubble.textContent = content;
+  right.appendChild(bubble);
+  if (citations.length) {
+    const c = document.createElement('div');
+    c.className = 'citations';
+    c.innerHTML = `<strong>📚 Sources</strong>` +
+      citations.map(x=>`<div>[${x.index}] ${x.source} (${x.doc_type}) — ${(x.score*100).toFixed(0)}%</div>`).join('');
+    right.appendChild(c);
+  }
+  wrap.appendChild(avatar);
+  wrap.appendChild(right);
+  document.getElementById('messages').appendChild(wrap);
+  document.getElementById('messages').scrollTop = 99999;
+  return wrap;
+}
+
+function addTyping() {
+  const wrap = document.createElement('div');
+  wrap.className = 'message bot';
+  wrap.innerHTML = `<div class="avatar">🤖</div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+  document.getElementById('messages').appendChild(wrap);
+  document.getElementById('messages').scrollTop = 99999;
+  return wrap;
+}
+
+async function sendMessage() {
+  const q = document.getElementById('question-input').value.trim();
+  if (!q) return;
+
+  // If URL detected in input, offer to crawl — but if user just presses enter, send as chat question
+  dismissBanner();
+  appendMessage('user', q);
+  document.getElementById('question-input').value = '';
+  document.getElementById('question-input').style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+
+  const typing = addTyping();
+  try {
+    const res  = await fetch(`${API}/chat`, {
+      method:'POST', headers:authH(),
+      body: JSON.stringify({question:q, doc_type_filter:document.getElementById('filter-select').value||null})
+    });
+    if(res.status===401){logout();return;}
+    const data = await res.json();
+    typing.remove();
+    appendMessage('bot', (data.cache_hit?'⚡ ':'')+data.answer, data.citations||[]);
+    loadHistory();
+  } catch {
+    typing.remove();
+    appendMessage('bot','❌ Cannot reach server.');
+  }
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('question-input').focus();
+}
+
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+function showToast(m,ms=3500){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
+
+loadDocuments();
+</script>
+</body>
+</html>
