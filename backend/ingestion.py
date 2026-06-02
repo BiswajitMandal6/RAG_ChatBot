@@ -2,45 +2,40 @@ import os
 import hashlib
 from pathlib import Path
 
-import chromadb
-from chromadb.config import Settings
+from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
 from pypdf import PdfReader
 
 from config import (
-    CHROMA_DB_PATH,
+    PINECONE_API_KEY,
+    PINECONE_INDEX,
+    DOCS_NAMESPACE,
     DOCUMENTS_PATH,
     EMBEDDING_MODEL,
-    COLLECTION_NAME,
     CHUNK_SIZE,
     CHUNK_OVERLAP,
 )
 
 # ---------------------------------------------------------------------------
-# Initialise embedding model and ChromaDB (done once at import time)
+# Initialise embedding model and Pinecone
 # ---------------------------------------------------------------------------
 
 print(f"[ingestion] Loading embedding model: {EMBEDDING_MODEL}")
 embedder = SentenceTransformer(EMBEDDING_MODEL)
 
-chroma_client = chromadb.PersistentClient(
-    path=CHROMA_DB_PATH,
-    settings=Settings(anonymized_telemetry=False),
-)
-collection = chroma_client.get_or_create_collection(
-    name=COLLECTION_NAME,
-    metadata={"hnsw:space": "cosine"},   # cosine similarity for text
-)
+pc         = Pinecone(api_key=PINECONE_API_KEY)
+pine_index = pc.Index(PINECONE_INDEX)
+
+print(f"[ingestion] Connected to Pinecone index: {PINECONE_INDEX}")
 
 
 # ---------------------------------------------------------------------------
-# Helper: extract raw text from a PDF
+# Helpers
 # ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(pdf_path: str) -> str:
-    """Read every page of a PDF and return concatenated text."""
     reader = PdfReader(pdf_path)
-    pages = []
+    pages  = []
     for page in reader.pages:
         text = page.extract_text()
         if text:
@@ -48,31 +43,18 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     return "\n\n".join(pages)
 
 
-# ---------------------------------------------------------------------------
-# Helper: split text into overlapping chunks
-# ---------------------------------------------------------------------------
-
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
-    """
-    Simple word-boundary chunking with overlap.
-    For Phase 2 we'll add semantic chunking at paragraph breaks.
-    """
-    words = text.split()
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
+               overlap: int = CHUNK_OVERLAP) -> list[str]:
+    words  = text.split()
     chunks = []
-    start = 0
-
+    start  = 0
     while start < len(words):
-        end = start + chunk_size
+        end   = start + chunk_size
         chunk = " ".join(words[start:end])
         chunks.append(chunk)
-        start += chunk_size - overlap   # slide forward, keeping overlap words
+        start += chunk_size - overlap
+    return [c for c in chunks if len(c.strip()) > 50]
 
-    return [c for c in chunks if len(c.strip()) > 50]  # drop tiny fragments
-
-
-# ---------------------------------------------------------------------------
-# Helper: stable ID for a chunk (prevents duplicate inserts)
-# ---------------------------------------------------------------------------
 
 def make_chunk_id(file_name: str, chunk_index: int) -> str:
     raw = f"{file_name}::chunk_{chunk_index}"
@@ -80,21 +62,10 @@ def make_chunk_id(file_name: str, chunk_index: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Core: ingest a single document file
+# Ingest a single document
 # ---------------------------------------------------------------------------
 
 def ingest_document(file_path: str, doc_type: str = "general") -> dict:
-    """
-    Full pipeline: file → text → chunks → embeddings → ChromaDB.
-
-    Args:
-        file_path:  Absolute or relative path to the PDF.
-        doc_type:   Category label stored as metadata. Use values like
-                    'syllabus', 'lecture_notes', 'question_paper', etc.
-
-    Returns:
-        Dict with ingestion summary.
-    """
     file_path = Path(file_path)
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -102,106 +73,116 @@ def ingest_document(file_path: str, doc_type: str = "general") -> dict:
     file_name = file_path.name
     print(f"[ingestion] Processing: {file_name}")
 
-    # 1. Extract text
     if file_path.suffix.lower() == ".pdf":
         raw_text = extract_text_from_pdf(str(file_path))
     else:
-        raise ValueError(f"Unsupported file type: {file_path.suffix}. Only PDF supported in Phase 1.")
+        raise ValueError(f"Unsupported file type: {file_path.suffix}")
 
     if not raw_text.strip():
-        raise ValueError(f"No text extracted from {file_name}. File may be scanned/image-based.")
+        raise ValueError(f"No text extracted from {file_name}.")
 
-    # 2. Chunk
-    chunks = chunk_text(raw_text)
-    print(f"[ingestion] {file_name} → {len(chunks)} chunks")
-
-    # 3. Embed
+    chunks     = chunk_text(raw_text)
     embeddings = embedder.encode(chunks, show_progress_bar=True).tolist()
 
-    # 4. Prepare ChromaDB records
-    ids = [make_chunk_id(file_name, i) for i in range(len(chunks))]
-    metadatas = [
-        {
-            "source": file_name,
-            "doc_type": doc_type,
-            "chunk_index": i,
-            "total_chunks": len(chunks),
-        }
-        for i in range(len(chunks))
-    ]
+    # Pinecone upsert — batch in groups of 100
+    vectors = []
+    for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+        vid = make_chunk_id(file_name, i)
+        vectors.append({
+            "id":     vid,
+            "values": emb,
+            "metadata": {
+                "source":      file_name,
+                "doc_type":    doc_type,
+                "chunk_index": i,
+                "total_chunks": len(chunks),
+                "text":        chunk[:1000],  # Pinecone metadata limit
+            }
+        })
 
-    # 5. Upsert (safe to re-run — won't create duplicates)
-    collection.upsert(
-        ids=ids,
-        embeddings=embeddings,
-        documents=chunks,
-        metadatas=metadatas,
-    )
+    # Upsert in batches of 100
+    batch_size = 100
+    for i in range(0, len(vectors), batch_size):
+        pine_index.upsert(
+            vectors=vectors[i:i + batch_size],
+            namespace=DOCS_NAMESPACE,
+        )
 
-    print(f"[ingestion] Done: {file_name} ({len(chunks)} chunks stored)")
-    return {
-        "file": file_name,
-        "doc_type": doc_type,
-        "chunks_stored": len(chunks),
-    }
+    print(f"[ingestion] Done: {file_name} ({len(chunks)} chunks)")
+    return {"file": file_name, "doc_type": doc_type, "chunks_stored": len(chunks)}
 
 
 # ---------------------------------------------------------------------------
-# Core: ingest all PDFs in the documents folder
+# Ingest all PDFs in folder
 # ---------------------------------------------------------------------------
 
 def ingest_all_documents(folder_path: str = DOCUMENTS_PATH) -> list[dict]:
-    """Walk the documents folder and ingest every PDF found."""
     folder = Path(folder_path)
     folder.mkdir(parents=True, exist_ok=True)
-
-    pdf_files = list(folder.rglob("*.pdf"))
-    if not pdf_files:
-        print(f"[ingestion] No PDFs found in {folder_path}")
-        return []
-
     results = []
-    for pdf in pdf_files:
+    for pdf in folder.rglob("*.pdf"):
         try:
-            result = ingest_document(str(pdf))
-            results.append(result)
+            results.append(ingest_document(str(pdf)))
         except Exception as e:
-            print(f"[ingestion] ERROR processing {pdf.name}: {e}")
+            print(f"[ingestion] ERROR {pdf.name}: {e}")
             results.append({"file": pdf.name, "error": str(e)})
-
     return results
 
 
 # ---------------------------------------------------------------------------
-# Core: delete all chunks belonging to a specific document
+# Delete a document
 # ---------------------------------------------------------------------------
 
 def delete_document(file_name: str) -> dict:
-    """Remove all ChromaDB entries for a given file (used by admin portal)."""
-    results = collection.get(where={"source": file_name})
-    ids_to_delete = results["ids"]
+    """Delete all vectors for a given source from Pinecone."""
+    try:
+        # Fetch IDs matching this source
+        results = pine_index.query(
+            vector=[0.0] * 384,
+            top_k=10000,
+            filter={"source": {"$eq": file_name}},
+            namespace=DOCS_NAMESPACE,
+            include_metadata=False,
+        )
+        ids = [m["id"] for m in results["matches"]]
 
-    if not ids_to_delete:
-        return {"file": file_name, "deleted": 0, "message": "No chunks found for this file."}
-
-    collection.delete(ids=ids_to_delete)
-    print(f"[ingestion] Deleted {len(ids_to_delete)} chunks for: {file_name}")
-    return {"file": file_name, "deleted": len(ids_to_delete)}
+        if ids:
+            pine_index.delete(ids=ids, namespace=DOCS_NAMESPACE)
+            print(f"[ingestion] Deleted {len(ids)} vectors for: {file_name}")
+        return {"file": file_name, "deleted": len(ids)}
+    except Exception as e:
+        print(f"[ingestion] Delete error: {e}")
+        return {"file": file_name, "deleted": 0, "error": str(e)}
 
 
 # ---------------------------------------------------------------------------
-# Utility: list all ingested documents
+# List ingested documents
 # ---------------------------------------------------------------------------
 
 def list_ingested_documents() -> list[dict]:
-    """Return a summary of every document currently in ChromaDB."""
-    all_meta = collection.get(include=["metadatas"])["metadatas"]
+    """List all unique sources in the Pinecone index."""
+    try:
+        stats = pine_index.describe_index_stats()
+        ns    = stats.get("namespaces", {}).get(DOCS_NAMESPACE, {})
+        total = ns.get("vector_count", 0)
 
-    seen = {}
-    for m in all_meta:
-        src = m.get("source", "unknown")
-        if src not in seen:
-            seen[src] = {"source": src, "doc_type": m.get("doc_type", "general"), "chunks": 0}
-        seen[src]["chunks"] += 1
+        # Sample vectors to find unique sources
+        result = pine_index.query(
+            vector=[0.0] * 384,
+            top_k=min(total, 10000) if total > 0 else 1,
+            namespace=DOCS_NAMESPACE,
+            include_metadata=True,
+        )
 
-    return list(seen.values())
+        seen = {}
+        for m in result.get("matches", []):
+            src  = m["metadata"].get("source", "unknown")
+            dtype = m["metadata"].get("doc_type", "general")
+            if src not in seen:
+                seen[src] = {"source": src, "doc_type": dtype, "chunks": 0}
+            seen[src]["chunks"] += 1
+
+        return list(seen.values())
+    except Exception as e:
+        print(f"[ingestion] List error: {e}")
+        return []

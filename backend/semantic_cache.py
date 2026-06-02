@@ -1,104 +1,82 @@
 import json
 import hashlib
-import chromadb
-from chromadb.config import Settings
-from config import CHROMA_DB_PATH, CACHE_COLLECTION_NAME, CACHE_SIMILARITY_THRESHOLD
+from config import PINECONE_INDEX, CACHE_NAMESPACE, CACHE_SIMILARITY_THRESHOLD
+from pinecone import Pinecone
+from config import PINECONE_API_KEY
 
-# ---------------------------------------------------------------------------
-# Separate ChromaDB collection just for the cache
-# ---------------------------------------------------------------------------
-
-_client = chromadb.PersistentClient(
-    path=CHROMA_DB_PATH,
-    settings=Settings(anonymized_telemetry=False),
-)
-cache_collection = _client.get_or_create_collection(
-    name=CACHE_COLLECTION_NAME,
-    metadata={"hnsw:space": "cosine"},
-)
+pc         = Pinecone(api_key=PINECONE_API_KEY)
+pine_index = pc.Index(PINECONE_INDEX)
 
 
-def _make_cache_id(query: str) -> str:
-    return hashlib.md5(query.strip().lower().encode()).hexdigest()
+def _cache_id(query: str) -> str:
+    return "cache_" + hashlib.md5(query.strip().lower().encode()).hexdigest()
 
 
 def get_cached_answer(query: str, embedder) -> dict | None:
-    """
-    Check if a semantically similar question was answered before.
+    try:
+        q_emb = embedder.encode(query).tolist()
+        results = pine_index.query(
+            vector=q_emb,
+            top_k=1,
+            namespace=CACHE_NAMESPACE,
+            include_metadata=True,
+        )
+        matches = results.get("matches", [])
+        if not matches:
+            return None
 
-    Uses cosine similarity on the query embedding. If the closest cached
-    question is above CACHE_SIMILARITY_THRESHOLD, return the cached answer.
+        score = matches[0]["score"]
+        if score >= CACHE_SIMILARITY_THRESHOLD:
+            print(f"[cache] HIT — similarity {score:.3f}")
+            data = json.loads(matches[0]["metadata"].get("payload", "{}"))
+            data["cache_hit"]        = True
+            data["cache_similarity"] = round(score, 4)
+            return data
 
-    Returns:
-        Cached result dict  (answer, citations, chunks_used, query)
-        or None if no cache hit.
-    """
-    if cache_collection.count() == 0:
-        return None
-
-    query_embedding = embedder.encode(query).tolist()
-
-    results = cache_collection.query(
-        query_embeddings=[query_embedding],
-        n_results=1,
-        include=["documents", "metadatas", "distances"],
-    )
-
-    if not results["ids"][0]:
-        return None
-
-    distance = results["distances"][0][0]
-    similarity = 1 - distance   # cosine distance → similarity
-
-    if similarity >= CACHE_SIMILARITY_THRESHOLD:
-        cached_data = json.loads(results["documents"][0][0])
-        print(f"[cache] HIT — similarity {similarity:.3f} for: '{query[:60]}'")
-        cached_data["cache_hit"] = True
-        cached_data["cache_similarity"] = round(similarity, 4)
-        return cached_data
-
-    print(f"[cache] MISS — best similarity {similarity:.3f} for: '{query[:60]}'")
+        print(f"[cache] MISS — best similarity {score:.3f}")
+    except Exception as e:
+        print(f"[cache] get error: {e}")
     return None
 
 
 def save_to_cache(query: str, result: dict, embedder) -> None:
-    """
-    Save a query-answer pair to the semantic cache.
-
-    Args:
-        query:   The original student question.
-        result:  The full result dict (answer, citations, etc.)
-        embedder: The sentence transformer instance for embedding the query.
-    """
-    cache_id = _make_cache_id(query)
-    query_embedding = embedder.encode(query).tolist()
-
-    # Store the full result as JSON in the document field
-    cache_doc = json.dumps({
-        "answer":      result.get("answer", ""),
-        "citations":   result.get("citations", []),
-        "chunks_used": result.get("chunks_used", 0),
-        "query":       query,
-    })
-
-    cache_collection.upsert(
-        ids=[cache_id],
-        embeddings=[query_embedding],
-        documents=[cache_doc],
-        metadatas=[{"original_query": query[:200]}],
-    )
-    print(f"[cache] Saved answer for: '{query[:60]}'")
+    try:
+        cid   = _cache_id(query)
+        q_emb = embedder.encode(query).tolist()
+        payload = json.dumps({
+            "answer":      result.get("answer", ""),
+            "citations":   result.get("citations", []),
+            "chunks_used": result.get("chunks_used", 0),
+            "query":       query,
+        })
+        pine_index.upsert(
+            vectors=[{
+                "id":     cid,
+                "values": q_emb,
+                "metadata": {
+                    "original_query": query[:200],
+                    "payload":        payload,
+                }
+            }],
+            namespace=CACHE_NAMESPACE,
+        )
+        print(f"[cache] Saved: '{query[:60]}'")
+    except Exception as e:
+        print(f"[cache] save error: {e}")
 
 
 def clear_cache() -> dict:
-    """Delete all entries from the semantic cache."""
-    count = cache_collection.count()
-    if count > 0:
-        all_ids = cache_collection.get()["ids"]
-        cache_collection.delete(ids=all_ids)
-    return {"cleared": count}
+    try:
+        pine_index.delete(delete_all=True, namespace=CACHE_NAMESPACE)
+        return {"cleared": True}
+    except Exception as e:
+        return {"cleared": False, "error": str(e)}
 
 
 def cache_stats() -> dict:
-    """Return basic cache statistics."""
-    return {"cached_queries": cache_collection.count()}
+    try:
+        stats = pine_index.describe_index_stats()
+        count = stats.get("namespaces", {}).get(CACHE_NAMESPACE, {}).get("vector_count", 0)
+        return {"cached_queries": count}
+    except Exception:
+        return {"cached_queries": 0}

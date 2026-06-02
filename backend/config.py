@@ -7,7 +7,6 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Paths
-CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "./chroma_db")
 DOCUMENTS_PATH = os.getenv("DOCUMENTS_PATH", "./data/documents")
 
 # Models
@@ -15,9 +14,13 @@ EMBEDDING_MODEL  = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 RERANKER_MODEL   = os.getenv("RERANKER_MODEL",  "cross-encoder/ms-marco-MiniLM-L-6-v2")
 LLM_MODEL        = os.getenv("LLM_MODEL",       "llama-3.3-70b-versatile")
 
-# ChromaDB
-COLLECTION_NAME       = "college_docs"
-CACHE_COLLECTION_NAME = "semantic_cache"
+# Pinecone
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX   = os.getenv("PINECONE_INDEX", "college-rag")
+
+# Pinecone namespace separation
+DOCS_NAMESPACE  = "college_docs"
+CACHE_NAMESPACE = "semantic_cache"
 
 # Chunking
 CHUNK_SIZE    = 512
