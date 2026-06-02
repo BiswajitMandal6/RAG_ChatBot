@@ -9,7 +9,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: GROQ_API_KEY
+      - key: 
         sync: false
       - key: JWT_SECRET
         sync: false
@@ -25,6 +25,8 @@ services:
         fromService:
           name: rag-redis
           type: redis
+          maxmemoryPolicy: allkeys-lru
+          ipAllowList: []
           property: connectionString
       - key: DOCUMENTS_PATH
         value: /tmp/documents
