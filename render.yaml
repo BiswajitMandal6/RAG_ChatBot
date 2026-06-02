@@ -8,13 +8,13 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: 
-        sync: false
+        value: "3.11.0"
+      - key: GROQ_API_KEY
+        value: changeme
       - key: JWT_SECRET
-        sync: false
+        value: changeme
       - key: PINECONE_API_KEY
-        sync: false
+        value: changeme
       - key: PINECONE_INDEX
         value: college-rag
       - key: DATABASE_URL
@@ -25,15 +25,13 @@ services:
         fromService:
           name: rag-redis
           type: redis
-          maxmemoryPolicy: allkeys-lru
-          ipAllowList: []
           property: connectionString
       - key: DOCUMENTS_PATH
         value: /tmp/documents
       - key: JWT_ALGORITHM
         value: HS256
       - key: JWT_EXPIRE_MINUTES
-        value: 1440
+        value: "1440"
       - key: LLM_MODEL
         value: llama-3.3-70b-versatile
       - key: EMBEDDING_MODEL
@@ -47,11 +45,11 @@ services:
     startCommand: cd backend && celery -A celery_app worker --loglevel=info --concurrency=1
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11.0"
       - key: GROQ_API_KEY
-        sync: false
+        value: changeme
       - key: PINECONE_API_KEY
-        sync: false
+        value: changeme
       - key: PINECONE_INDEX
         value: college-rag
       - key: DATABASE_URL
@@ -75,6 +73,7 @@ services:
     name: rag-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   # ── PostgreSQL ───────────────────────────────────────────────────────────
