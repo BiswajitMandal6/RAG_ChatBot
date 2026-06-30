@@ -4,7 +4,7 @@ services:
     name: rag-chatbot-api
     runtime: python
     buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    startCommand: export PYTHONPATH=$PYTHONPATH:backend && uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHONPATH
@@ -39,7 +39,7 @@ services:
     name: rag-chatbot-worker
     runtime: python
     buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: celery -A backend.celery_app worker --loglevel=info --concurrency=1
+    startCommand: export PYTHONPATH=$PYTHONPATH:backend && celery -A backend.celery_app worker --loglevel=info --concurrency=1
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
