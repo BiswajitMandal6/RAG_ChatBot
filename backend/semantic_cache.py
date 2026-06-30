@@ -5,8 +5,16 @@ from pinecone import Pinecone
 from config import PINECONE_API_KEY
 from ingestion import get_embedder
 
-pc         = Pinecone(api_key=PINECONE_API_KEY)
-pine_index = pc.Index(PINECONE_INDEX)
+_pc = None
+_pine_index = None
+
+def get_cache_index():
+    global _pc, _pine_index
+    if _pine_index is None:
+        print(f"[cache] Lazy loading Pinecone index: {PINECONE_INDEX}")
+        _pc = Pinecone(api_key=PINECONE_API_KEY)
+        _pine_index = _pc.Index(PINECONE_INDEX)
+    return _pine_index
 
 
 def _cache_id(query: str) -> str:
@@ -18,7 +26,7 @@ def get_cached_answer(query: str, embedder=None) -> dict | None:
         # Use the provided embedder or fetch the lazy-loaded one
         actual_embedder = embedder if embedder else get_embedder()
         q_emb = actual_embedder.encode(query).tolist()
-        results = pine_index.query(
+        results = get_cache_index().query(
             vector=q_emb,
             top_k=1,
             namespace=CACHE_NAMESPACE,
@@ -53,7 +61,7 @@ def save_to_cache(query: str, result: dict, embedder=None) -> None:
             "chunks_used": result.get("chunks_used", 0),
             "query":       query,
         })
-        pine_index.upsert(
+        get_cache_index().upsert(
             vectors=[{
                 "id":     cid,
                 "values": q_emb,
@@ -71,7 +79,7 @@ def save_to_cache(query: str, result: dict, embedder=None) -> None:
 
 def clear_cache() -> dict:
     try:
-        pine_index.delete(delete_all=True, namespace=CACHE_NAMESPACE)
+        get_cache_index().delete(delete_all=True, namespace=CACHE_NAMESPACE)
         return {"cleared": True}
     except Exception as e:
         return {"cleared": False, "error": str(e)}
@@ -79,7 +87,7 @@ def clear_cache() -> dict:
 
 def cache_stats() -> dict:
     try:
-        stats = pine_index.describe_index_stats()
+        stats = get_cache_index().describe_index_stats()
         count = stats.get("namespaces", {}).get(CACHE_NAMESPACE, {}).get("vector_count", 0)
         return {"cached_queries": count}
     except Exception:

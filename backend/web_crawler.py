@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 from playwright_stealth import stealth_async
 
-from ingestion import chunk_text, embedder, pine_index, make_chunk_id
+from ingestion import chunk_text, get_embedder, get_pine_index, make_chunk_id
 from config import CHUNK_SIZE, CHUNK_OVERLAP, DOCS_NAMESPACE
 
 if sys.platform == "win32":
@@ -335,7 +335,7 @@ async def crawl_and_ingest(url: str, doc_type: str = "web") -> dict:
 
     # Embed and upsert to Pinecone in batches
     print(f"[crawler] ══ Embedding {len(all_chunks)} chunks...")
-    embeddings = embedder.encode(all_chunks, show_progress_bar=True).tolist()
+    embeddings = get_embedder().encode(all_chunks, show_progress_bar=True).tolist()
 
     vectors = []
     for i, (chunk, emb, meta) in enumerate(zip(all_chunks, embeddings, all_metas)):
@@ -347,7 +347,7 @@ async def crawl_and_ingest(url: str, doc_type: str = "web") -> dict:
 
     batch_size = 100
     for i in range(0, len(vectors), batch_size):
-        pine_index.upsert(vectors=vectors[i:i+batch_size], namespace=DOCS_NAMESPACE)
+        get_pine_index().upsert(vectors=vectors[i:i+batch_size], namespace=DOCS_NAMESPACE)
         print(f"[crawler] Upserted batch {i//batch_size + 1}/{(len(vectors)-1)//batch_size + 1}")
 
     print(f"[crawler] ══ DONE: {len(all_chunks)} chunks / {len(pages_done)} pages ══")

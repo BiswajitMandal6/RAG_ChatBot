@@ -5,7 +5,7 @@ from config import (
     TOP_K_RESULTS, TOP_K_AFTER_RERANK, QUERY_EXPANSIONS,
     DOCS_NAMESPACE,
 )
-from ingestion import get_embedder, pine_index
+from ingestion import get_embedder, get_pine_index
 from reranker import rerank_chunks
 from semantic_cache import get_cached_answer, save_to_cache
 
@@ -56,9 +56,10 @@ def retrieve_chunks(queries: list[str], top_k: int = TOP_K_RESULTS,
     seen  = {}
     filter_dict = {"doc_type": {"$eq": doc_type_filter}} if doc_type_filter else None
 
+    embedder = get_embedder()
     for q in queries:
         q_emb = embedder.encode(q).tolist()
-        results = pine_index.query(
+        results = get_pine_index().query(
             vector=q_emb,
             top_k=top_k,
             namespace=DOCS_NAMESPACE,
@@ -142,6 +143,7 @@ def rag_query(query: str, doc_type_filter: str = None) -> dict:
                 "cache_hit": False, "expanded_queries": []}
 
     # 1. Cache check
+    embedder = get_embedder()
     cached = get_cached_answer(query, embedder)
     if cached:
         return cached
