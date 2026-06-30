@@ -114,14 +114,19 @@ except Exception as e:
 
 @app.on_event("startup")
 def startup():
+    print("[main] Starting up application...")
     if create_tables:
         try:
+            print("[main] Attempting to connect to database and create tables...")
             create_tables()
             print("[main] Database tables ready.")
         except Exception as e:
-            print(f"[main] ERROR creating tables: {e}")
+            print(f"[main] CRITICAL ERROR creating tables: {e}")
+            print("[main] The app will still start, but database features may fail.")
     else:
         print("[main] Skipping DB setup — database.py failed to import.")
+    
+    print("[main] Startup sequence complete. Server is now ready to handle requests.")
 
 # ---------------------------------------------------------------------------
 # Routes
