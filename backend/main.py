@@ -1,4 +1,14 @@
 print("[DEBUG] --- main.py is being loaded ---")
+import os
+import sys
+from pathlib import Path
+
+# Force the 'backend' directory into the Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+    print(f"[DEBUG] Added {current_dir} to sys.path")
+
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
