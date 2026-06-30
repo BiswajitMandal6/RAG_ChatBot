@@ -3,7 +3,7 @@ import hashlib
 from pathlib import Path
 
 from pinecone import Pinecone
-from sentence_transformers import SentenceTransformer
+
 from pypdf import PdfReader
 
 from config import (
@@ -27,6 +27,7 @@ def get_embedder():
     global _embedder
     if _embedder is None:
         print(f"[ingestion] Lazy loading embedding model: {EMBEDDING_MODEL}")
+        from sentence_transformers import SentenceTransformer
         _embedder = SentenceTransformer(EMBEDDING_MODEL)
     return _embedder
 

@@ -1,4 +1,4 @@
-from sentence_transformers import CrossEncoder
+
 from config import RERANKER_MODEL, TOP_K_AFTER_RERANK
 
 # Global variable to hold the model once loaded
@@ -9,6 +9,7 @@ def get_reranker():
     global _reranker_model
     if _reranker_model is None:
         print(f"[reranker] Lazy loading reranker model: {RERANKER_MODEL}")
+        from sentence_transformers import CrossEncoder
         _reranker_model = CrossEncoder(RERANKER_MODEL, max_length=512)
     return _reranker_model
 
