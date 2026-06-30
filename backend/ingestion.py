@@ -90,7 +90,6 @@ def ingest_document(file_path: str, doc_type: str = "general") -> dict:
         raise ValueError(f"No text extracted from {file_name}.")
 
     chunks     = chunk_text(raw_text)
-    # FIX: Use get_embedder()
     embeddings = get_embedder().encode(chunks, show_progress_bar=True).tolist()
 
     # Pinecone upsert — batch in groups of 100
@@ -105,11 +104,10 @@ def ingest_document(file_path: str, doc_type: str = "general") -> dict:
                 "doc_type":    doc_type,
                 "chunk_index": i,
                 "total_chunks": len(chunks),
-                "text":        chunk[:1000],  # Pinecone metadata limit
+                "text":        chunk[:1000],
             }
         })
 
-    # Upsert in batches of 100
     batch_size = 100
     for i in range(0, len(vectors), batch_size):
         pine_index.upsert(
@@ -143,9 +141,7 @@ def ingest_all_documents(folder_path: str = DOCUMENTS_PATH) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def delete_document(file_name: str) -> dict:
-    """Delete all vectors for a given source from Pinecone."""
     try:
-        # Fetch IDs matching this source
         results = pine_index.query(
             vector=[0.0] * 384,
             top_k=10000,
@@ -169,13 +165,11 @@ def delete_document(file_name: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def list_ingested_documents() -> list[dict]:
-    """List all unique sources in the Pinecone index."""
     try:
         stats = pine_index.describe_index_stats()
         ns    = stats.get("namespaces", {}).get(DOCS_NAMESPACE, {})
         total = ns.get("vector_count", 0)
 
-        # Sample vectors to find unique sources
         result = pine_index.query(
             vector=[0.0] * 384,
             top_k=min(total, 10000) if total > 0 else 1,

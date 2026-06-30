@@ -104,7 +104,7 @@ class UsageStat(Base):
 
 def get_db():
     """FastAPI dependency — yields a DB session and closes it after the request."""
-    db = SessionLocal()
+    db = get_session()
     try:
         yield db
     finally:
@@ -113,5 +113,5 @@ def get_db():
 
 def create_tables():
     """Create all tables if they don't exist."""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_engine())
     print("[database] Tables created / verified.")
