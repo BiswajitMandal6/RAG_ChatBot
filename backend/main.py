@@ -84,19 +84,7 @@ try:
 except Exception as e:
     print(f"[main] ERROR loading crawler_router: {e}")
 
-try:
-    from routers.web_router import router as web_router
-    app.include_router(web_router)
-    print("[main] web_router loaded OK")
-except Exception as e:
-    print(f"[main] ERROR loading web_router: {e}")
-
-try:
-    from routers.scraper_router import router as scraper_router
-    app.include_router(scraper_router)
-    print("[main] scraper_router loaded OK")
-except Exception as e:
-    print(f"[main] ERROR loading scraper_router: {e}")
+# Removed web_router and scraper_router as they do not exist in the codebase.
 
 # ---------------------------------------------------------------------------
 # Cache utils

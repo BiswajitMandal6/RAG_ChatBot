@@ -46,9 +46,7 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         text = page.extract_text()
         if text:
             pages.append(text.strip())
-    return "
-
-".join(pages)
+    return "\n\n".join(pages)
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,

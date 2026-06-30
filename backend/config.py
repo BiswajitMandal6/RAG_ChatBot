@@ -36,7 +36,7 @@ ENABLE_RERANKING    = False  # Set to False to disable reranking for speed and R
 CACHE_SIMILARITY_THRESHOLD = 0.92
 
 # PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Biswajit%407411@db.djgueupzzzphzznkqrbr.supabase.co:5432/postgres")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Biswajit%407411@db.djgueupzzzphzznkqrbr.supabase.co:6543/postgres?pgbouncer=true")
 
 # JWT
 JWT_SECRET         = os.getenv("JWT_SECRET", "superSecretKey2024RagChatBot")
