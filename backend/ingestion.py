@@ -52,9 +52,9 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         text = page.extract_text()
         if text:
             pages.append(text.strip())
-    return "
-
-".join(pages)
+    # Using a joined string with explicit newline characters
+    sep = chr(10) + chr(10)
+    return sep.join(pages)
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
@@ -98,7 +98,6 @@ def ingest_document(file_path: str, doc_type: str = "general") -> dict:
     chunks     = chunk_text(raw_text)
     embeddings = get_embedder().encode(chunks, show_progress_bar=True).tolist()
 
-    # Pinecone upsert — batch in groups of 100
     vectors = []
     for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
         vid = make_chunk_id(file_name, i)
