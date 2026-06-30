@@ -52,9 +52,7 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         text = page.extract_text()
         if text:
             pages.append(text.strip())
-    # Using a joined string with explicit newline characters
-    sep = chr(10) + chr(10)
-    return sep.join(pages)
+    return "\n\n".join(pages)
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
