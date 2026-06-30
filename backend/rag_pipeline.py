@@ -5,7 +5,7 @@ from config import (
     TOP_K_RESULTS, TOP_K_AFTER_RERANK, QUERY_EXPANSIONS,
     DOCS_NAMESPACE,
 )
-from ingestion import embedder, pine_index
+from ingestion import get_embedder, pine_index
 from reranker import rerank_chunks
 from semantic_cache import get_cached_answer, save_to_cache
 

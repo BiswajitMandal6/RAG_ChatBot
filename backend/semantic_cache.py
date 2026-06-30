@@ -3,6 +3,7 @@ import hashlib
 from config import PINECONE_INDEX, CACHE_NAMESPACE, CACHE_SIMILARITY_THRESHOLD
 from pinecone import Pinecone
 from config import PINECONE_API_KEY
+from ingestion import get_embedder
 
 pc         = Pinecone(api_key=PINECONE_API_KEY)
 pine_index = pc.Index(PINECONE_INDEX)
@@ -12,9 +13,11 @@ def _cache_id(query: str) -> str:
     return "cache_" + hashlib.md5(query.strip().lower().encode()).hexdigest()
 
 
-def get_cached_answer(query: str, embedder) -> dict | None:
+def get_cached_answer(query: str, embedder=None) -> dict | None:
     try:
-        q_emb = embedder.encode(query).tolist()
+        # Use the provided embedder or fetch the lazy-loaded one
+        actual_embedder = embedder if embedder else get_embedder()
+        q_emb = actual_embedder.encode(query).tolist()
         results = pine_index.query(
             vector=q_emb,
             top_k=1,
@@ -39,13 +42,14 @@ def get_cached_answer(query: str, embedder) -> dict | None:
     return None
 
 
-def save_to_cache(query: str, result: dict, embedder) -> None:
+def save_to_cache(query: str, result: dict, embedder=None) -> None:
     try:
+        actual_embedder = embedder if embedder else get_embedder()
         cid   = _cache_id(query)
-        q_emb = embedder.encode(query).tolist()
+        q_emb = actual_embedder.encode(query).tolist()
         payload = json.dumps({
             "answer":      result.get("answer", ""),
-            "citations":   result.get("citations", []),
+            "citations":    result.get("citations", []),
             "chunks_used": result.get("chunks_used", 0),
             "query":       query,
         })

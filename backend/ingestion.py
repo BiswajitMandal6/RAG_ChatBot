@@ -20,8 +20,14 @@ from config import (
 # Initialise embedding model and Pinecone
 # ---------------------------------------------------------------------------
 
-print(f"[ingestion] Loading embedding model: {EMBEDDING_MODEL}")
-embedder = SentenceTransformer(EMBEDDING_MODEL)
+_embedder = None
+
+def get_embedder():
+    global _embedder
+    if _embedder is None:
+        print(f"[ingestion] Lazy loading embedding model: {EMBEDDING_MODEL}")
+        _embedder = SentenceTransformer(EMBEDDING_MODEL)
+    return _embedder
 
 pc         = Pinecone(api_key=PINECONE_API_KEY)
 pine_index = pc.Index(PINECONE_INDEX)
@@ -40,7 +46,9 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         text = page.extract_text()
         if text:
             pages.append(text.strip())
-    return "\n\n".join(pages)
+    return "
+
+".join(pages)
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
@@ -82,7 +90,8 @@ def ingest_document(file_path: str, doc_type: str = "general") -> dict:
         raise ValueError(f"No text extracted from {file_name}.")
 
     chunks     = chunk_text(raw_text)
-    embeddings = embedder.encode(chunks, show_progress_bar=True).tolist()
+    # FIX: Use get_embedder()
+    embeddings = get_embedder().encode(chunks, show_progress_bar=True).tolist()
 
     # Pinecone upsert — batch in groups of 100
     vectors = []
