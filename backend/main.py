@@ -1,3 +1,4 @@
+print("[DEBUG] --- main.py is being loaded ---")
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
