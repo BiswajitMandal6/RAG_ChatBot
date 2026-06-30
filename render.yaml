@@ -20,10 +20,7 @@ services:
       - key: DATABASE_URL
         value: changeme
       - key: REDIS_URL
-        fromService:
-          name: rag-redis
-          type: redis
-          property: connectionString
+        value: changeme
       - key: DOCUMENTS_PATH
         value: /tmp/documents
       - key: JWT_ALGORITHM
@@ -53,20 +50,10 @@ services:
       - key: DATABASE_URL
         value: changeme
       - key: REDIS_URL
-        fromService:
-          name: rag-redis
-          type: redis
-          property: connectionString
+        value: changeme
       - key: DOCUMENTS_PATH
         value: /tmp/documents
       - key: LLM_MODEL
         value: llama-3.3-70b-versatile
       - key: EMBEDDING_MODEL
         value: all-MiniLM-L6-v2
-
-  # ── Redis ────────────────────────────────────────────────────────────────
-  - type: redis
-    name: rag-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []
