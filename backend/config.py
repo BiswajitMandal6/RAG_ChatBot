@@ -29,13 +29,14 @@ CHUNK_OVERLAP = 100
 # Retrieval
 TOP_K_RESULTS      = 8
 TOP_K_AFTER_RERANK = 3
-QUERY_EXPANSIONS   = 3
+QUERY_EXPANSIONS   = 0  # Set to 0 to disable expansion for speed
+ENABLE_RERANKING    = False  # Set to False to disable reranking for speed and RAM savings
 
 # Semantic cache
 CACHE_SIMILARITY_THRESHOLD = 0.92
 
 # PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://rag_user:ragpass123@localhost:5432/college_rag")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Biswajit%407411@db.djgueupzzzphzznkqrbr.supabase.co:5432/postgres")
 
 # JWT
 JWT_SECRET         = os.getenv("JWT_SECRET", "superSecretKey2024RagChatBot")

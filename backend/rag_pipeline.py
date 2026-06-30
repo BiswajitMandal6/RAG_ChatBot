@@ -147,7 +147,8 @@ def rag_query(query: str, doc_type_filter: str = None) -> dict:
         return cached
 
     # 2. Query expansion
-    expanded = expand_query(query)
+    from config import QUERY_EXPANSIONS, ENABLE_RERANKING
+    expanded = expand_query(query) if QUERY_EXPANSIONS > 0 else [query]
 
     # 3. Retrieve
     chunks = retrieve_chunks(expanded, top_k=TOP_K_RESULTS,
@@ -158,7 +159,11 @@ def rag_query(query: str, doc_type_filter: str = None) -> dict:
                 "cache_hit": False, "expanded_queries": expanded}
 
     # 4. Rerank
-    reranked = rerank_chunks(query, chunks, top_k=TOP_K_AFTER_RERANK)
+    if ENABLE_RERANKING:
+        reranked = rerank_chunks(query, chunks, top_k=TOP_K_AFTER_RERANK)
+    else:
+        # If reranking is disabled, use top_k_after_rerank from the initial retrieval
+        reranked = chunks[:TOP_K_AFTER_RERANK]
 
     # 5. Build context
     context, citations = build_context(reranked)
