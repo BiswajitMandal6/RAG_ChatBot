@@ -21,6 +21,7 @@ from config import (
 # ---------------------------------------------------------------------------
 
 _embedder = None
+_pine_index = None
 
 def get_embedder():
     global _embedder
@@ -29,10 +30,15 @@ def get_embedder():
         _embedder = SentenceTransformer(EMBEDDING_MODEL)
     return _embedder
 
-pc         = Pinecone(api_key=PINECONE_API_KEY)
-pine_index = pc.Index(PINECONE_INDEX)
+def get_pine_index():
+    global _pine_index
+    if _pine_index is None:
+        print(f"[ingestion] Lazy loading Pinecone index: {PINECONE_INDEX}")
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        _pine_index = pc.Index(PINECONE_INDEX)
+    return _pine_index
 
-print(f"[ingestion] Connected to Pinecone index: {PINECONE_INDEX}")
+print(f"[ingestion] Ingestion module initialized (Lazy Load enabled)")
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +52,9 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         text = page.extract_text()
         if text:
             pages.append(text.strip())
-    return "\n\n".join(pages)
+    return "
+
+".join(pages)
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
@@ -108,7 +116,7 @@ def ingest_document(file_path: str, doc_type: str = "general") -> dict:
 
     batch_size = 100
     for i in range(0, len(vectors), batch_size):
-        pine_index.upsert(
+        get_pine_index().upsert(
             vectors=vectors[i:i + batch_size],
             namespace=DOCS_NAMESPACE,
         )
@@ -140,7 +148,7 @@ def ingest_all_documents(folder_path: str = DOCUMENTS_PATH) -> list[dict]:
 
 def delete_document(file_name: str) -> dict:
     try:
-        results = pine_index.query(
+        results = get_pine_index().query(
             vector=[0.0] * 384,
             top_k=10000,
             filter={"source": {"$eq": file_name}},
@@ -150,7 +158,7 @@ def delete_document(file_name: str) -> dict:
         ids = [m["id"] for m in results["matches"]]
 
         if ids:
-            pine_index.delete(ids=ids, namespace=DOCS_NAMESPACE)
+            get_pine_index().delete(ids=ids, namespace=DOCS_NAMESPACE)
             print(f"[ingestion] Deleted {len(ids)} vectors for: {file_name}")
         return {"file": file_name, "deleted": len(ids)}
     except Exception as e:
@@ -164,11 +172,11 @@ def delete_document(file_name: str) -> dict:
 
 def list_ingested_documents() -> list[dict]:
     try:
-        stats = pine_index.describe_index_stats()
+        stats = get_pine_index().describe_index_stats()
         ns    = stats.get("namespaces", {}).get(DOCS_NAMESPACE, {})
         total = ns.get("vector_count", 0)
 
-        result = pine_index.query(
+        result = get_pine_index().query(
             vector=[0.0] * 384,
             top_k=min(total, 10000) if total > 0 else 1,
             namespace=DOCS_NAMESPACE,
