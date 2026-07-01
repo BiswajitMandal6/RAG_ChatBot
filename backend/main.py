@@ -1,4 +1,3 @@
-print("[DEBUG] --- main.py is being loaded ---")
 import os
 import sys
 from pathlib import Path
@@ -113,8 +112,14 @@ except Exception as e:
 
 @app.on_event("startup")
 def startup():
-    print("[main] Starting up application in Safe Mode...")
-    print("[main] Database table creation has been disabled at startup to prevent timeouts.")
+    print("[main] Starting up application...")
+    if create_tables:
+        try:
+            create_tables()
+        except Exception as e:
+            print(f"[main] ERROR creating tables: {e}")
+    else:
+        print("[main] Warning: create_tables not available.")
     print("[main] Startup sequence complete. Server is now ready to handle requests.")
 
 # ---------------------------------------------------------------------------

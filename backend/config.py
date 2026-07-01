@@ -36,12 +36,26 @@ ENABLE_RERANKING    = False  # Set to False to disable reranking for speed and R
 CACHE_SIMILARITY_THRESHOLD = 0.92
 
 # PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Biswajit%407411@db.djgueupzzzphzznkqrbr.supabase.co:6543/postgres?pgbouncer=true")
+raw_db_url = os.getenv("DATABASE_URL", "").strip()
+if not raw_db_url or raw_db_url == "changeme":
+    DATABASE_URL = "postgresql://postgres:Biswajit%407411@db.djgueupzzzphzznkqrbr.supabase.co:6543/postgres?pgbouncer=true"
+else:
+    # Render and Heroku might inject "postgres://" but SQLAlchemy requires "postgresql://"
+    if raw_db_url.startswith("postgres://"):
+        DATABASE_URL = raw_db_url.replace("postgres://", "postgresql://", 1)
+    else:
+        DATABASE_URL = raw_db_url
 
 # JWT
-JWT_SECRET         = os.getenv("JWT_SECRET", "superSecretKey2024RagChatBot")
+raw_jwt_secret = os.getenv("JWT_SECRET", "").strip()
+JWT_SECRET = raw_jwt_secret if (raw_jwt_secret and raw_jwt_secret != "changeme") else "superSecretKey2024RagChatBot"
+
 JWT_ALGORITHM      = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
 # Redis
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+raw_redis_url = os.getenv("REDIS_URL", "").strip()
+if raw_redis_url and raw_redis_url != "changeme" and any(raw_redis_url.startswith(sch) for sch in ["redis://", "rediss://", "unix://"]):
+    REDIS_URL = raw_redis_url
+else:
+    REDIS_URL = "redis://localhost:6379/0"
