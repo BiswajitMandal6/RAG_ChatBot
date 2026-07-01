@@ -26,7 +26,7 @@ services:
       # User format for pooler: postgres.<project-ref>:<password>
       # -----------------------------------------------------------------------
       - key: DATABASE_URL
-        value: "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
+        value: "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
       # -----------------------------------------------------------------------
       # Set a real REDIS_URL if you have Redis (e.g., Upstash free tier).
       # Leave as 'disabled' to run without the crawler feature.
@@ -60,7 +60,7 @@ services:
       - key: PINECONE_INDEX
         value: college-rag
       - key: DATABASE_URL
-        value: "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
+        value: "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
       - key: REDIS_URL
         value: disabled
       - key: DOCUMENTS_PATH

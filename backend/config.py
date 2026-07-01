@@ -39,54 +39,67 @@ CACHE_SIMILARITY_THRESHOLD = 0.92
 # PostgreSQL / Supabase
 # ---------------------------------------------------------------------------
 # IMPORTANT: Render free tier does NOT support IPv6.
-# Supabase's direct connection (port 5432) resolves to IPv6 → connection fails.
-# Solution: Use Supabase's PgBouncer pooler which uses IPv4:
-#   - Host format: aws-0-<region>.pooler.supabase.com
-#   - Port: 6543 (transaction mode) or 5432 (session mode on pooler host)
-#   - Add ?pgbouncer=true to the URL
+# Supabase's direct connection (db.*.supabase.co:5432) resolves to IPv6 → FAILS.
+# Use the Supabase PgBouncer pooler URL (IPv4) instead:
+#   Host:  aws-0-<region>.pooler.supabase.com
+#   Port:  6543
+#   User:  postgres.<project-ref>   (note: project-ref is appended to username)
 #
-# Set DATABASE_URL in Render to your Supabase POOLER connection string.
-# It looks like: postgresql://postgres.djgueupzzzphzznkqrbr:<password>@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+# NOTE: psycopg2 does NOT accept "pgbouncer=true" as a DSN parameter — only
+# asyncpg does. We strip it from the URL automatically. NullPool (set in
+# database.py) already provides full PgBouncer transaction-mode compatibility.
 # ---------------------------------------------------------------------------
+
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 SUPABASE_PROJECT_REF = "djgueupzzzphzznkqrbr"
 
-# This is the IPv4-safe pooler fallback URL.
-# The user part changes to postgres.<project-ref> for pooler connections.
+# The clean IPv4-safe pooler URL — NO pgbouncer=true, psycopg2-compatible.
 _POOLER_FALLBACK = (
     "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411"
     "@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
-    "?pgbouncer=true&sslmode=require"
+    "?sslmode=require"
 )
+
+
+def _clean_db_url(url: str) -> str:
+    """
+    Sanitise a PostgreSQL URL for use with psycopg2 + SQLAlchemy:
+      1. Convert postgres:// → postgresql://
+      2. Remove 'pgbouncer=true' query param (psycopg2 rejects it)
+      3. Keep sslmode and other valid params
+    """
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    params.pop("pgbouncer", None)          # strip the offending param
+    clean_query = urlencode({k: v[0] for k, v in params.items()})
+    return urlunparse(parsed._replace(query=clean_query))
+
 
 raw_db_url = os.getenv("DATABASE_URL", "").strip()
 
-if not raw_db_url or raw_db_url == "changeme":
-    # No env var set — use the hardcoded pooler URL (IPv4 safe)
+if not raw_db_url or raw_db_url in ("changeme", "disabled", ""):
+    # No env var set — use the hardcoded pooler URL (IPv4 safe, psycopg2 clean)
     DATABASE_URL = _POOLER_FALLBACK
 else:
-    # Fix scheme: SQLAlchemy requires postgresql://, not postgres://
-    if raw_db_url.startswith("postgres://"):
-        raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
-
-    # Detect if this is the old direct-connection URL pointing at port 5432
-    # on the direct host (db.*.supabase.co) and auto-correct it to the pooler.
+    # Detect old direct-connection URL (db.*.supabase.co:5432) → auto-correct
     if (
         f"db.{SUPABASE_PROJECT_REF}.supabase.co" in raw_db_url
-        or ":5432" in raw_db_url
-    ) and "pooler.supabase.com" not in raw_db_url:
+        and "pooler.supabase.com" not in raw_db_url
+    ):
         print(
             "[config] WARNING: DATABASE_URL points to Supabase direct connection "
             "(IPv6). Render free tier does not support IPv6. "
             "Auto-correcting to PgBouncer pooler URL (IPv4)."
         )
         DATABASE_URL = _POOLER_FALLBACK
-    elif "pgbouncer=true" not in raw_db_url and "pooler.supabase.com" in raw_db_url:
-        # Pooler URL but missing pgbouncer flag — add it
-        sep = "&" if "?" in raw_db_url else "?"
-        DATABASE_URL = raw_db_url + sep + "pgbouncer=true"
     else:
-        DATABASE_URL = raw_db_url
+        # Use the provided URL, but strip pgbouncer=true so psycopg2 is happy
+        DATABASE_URL = _clean_db_url(raw_db_url)
+
+print(f"[config] DATABASE_URL host: {urlparse(DATABASE_URL).hostname}")
 
 # JWT
 raw_jwt_secret = os.getenv("JWT_SECRET", "").strip()
