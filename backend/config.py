@@ -38,42 +38,37 @@ CACHE_SIMILARITY_THRESHOLD = 0.92
 # ---------------------------------------------------------------------------
 # PostgreSQL / Supabase
 # ---------------------------------------------------------------------------
-# IMPORTANT: Render free tier does NOT support IPv6.
+# Render free tier does NOT support IPv6.
 # Supabase's direct connection (db.*.supabase.co:5432) resolves to IPv6 → FAILS.
-# Use the Supabase PgBouncer pooler URL (IPv4) instead:
-#   Host:  aws-0-<region>.pooler.supabase.com
-#   Port:  6543
-#   User:  postgres.<project-ref>   (note: project-ref is appended to username)
 #
-# NOTE: psycopg2 does NOT accept "pgbouncer=true" as a DSN parameter — only
-# asyncpg does. We strip it from the URL automatically. NullPool (set in
-# database.py) already provides full PgBouncer transaction-mode compatibility.
+# REQUIRED: Set DATABASE_URL in Render's dashboard to your Supabase POOLER URL:
+#   1. Go to: https://supabase.com/dashboard/project/djgueupzzzphzznkqrbr/settings/database
+#   2. Scroll to "Connection pooling" → copy the "Connection string" (port 6543)
+#   3. Go to Render dashboard → your service → Environment → update DATABASE_URL
+#
+# The pooler URL looks like:
+#   postgresql://postgres.djgueupzzzphzznkqrbr:<password>@aws-0-<REGION>.pooler.supabase.com:6543/postgres
+#
+# NOTE: psycopg2 does NOT accept "pgbouncer=true" — we strip it automatically.
+# NullPool in database.py already provides PgBouncer transaction-mode compatibility.
 # ---------------------------------------------------------------------------
 
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 SUPABASE_PROJECT_REF = "djgueupzzzphzznkqrbr"
 
-# The clean IPv4-safe pooler URL — NO pgbouncer=true, psycopg2-compatible.
-_POOLER_FALLBACK = (
-    "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411"
-    "@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
-    "?sslmode=require"
-)
-
 
 def _clean_db_url(url: str) -> str:
     """
-    Sanitise a PostgreSQL URL for use with psycopg2 + SQLAlchemy:
+    Sanitise a PostgreSQL URL for psycopg2 + SQLAlchemy:
       1. Convert postgres:// → postgresql://
-      2. Remove 'pgbouncer=true' query param (psycopg2 rejects it)
-      3. Keep sslmode and other valid params
+      2. Strip 'pgbouncer=true' (psycopg2 rejects it; NullPool handles compatibility)
     """
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     parsed = urlparse(url)
     params = parse_qs(parsed.query, keep_blank_values=True)
-    params.pop("pgbouncer", None)          # strip the offending param
+    params.pop("pgbouncer", None)
     clean_query = urlencode({k: v[0] for k, v in params.items()})
     return urlunparse(parsed._replace(query=clean_query))
 
@@ -81,25 +76,35 @@ def _clean_db_url(url: str) -> str:
 raw_db_url = os.getenv("DATABASE_URL", "").strip()
 
 if not raw_db_url or raw_db_url in ("changeme", "disabled", ""):
-    # No env var set — use the hardcoded pooler URL (IPv4 safe, psycopg2 clean)
-    DATABASE_URL = _POOLER_FALLBACK
-else:
-    # Detect old direct-connection URL (db.*.supabase.co:5432) → auto-correct
-    if (
-        f"db.{SUPABASE_PROJECT_REF}.supabase.co" in raw_db_url
-        and "pooler.supabase.com" not in raw_db_url
-    ):
-        print(
-            "[config] WARNING: DATABASE_URL points to Supabase direct connection "
-            "(IPv6). Render free tier does not support IPv6. "
-            "Auto-correcting to PgBouncer pooler URL (IPv4)."
-        )
-        DATABASE_URL = _POOLER_FALLBACK
-    else:
-        # Use the provided URL, but strip pgbouncer=true so psycopg2 is happy
-        DATABASE_URL = _clean_db_url(raw_db_url)
+    raise RuntimeError(
+        "\n\n[FATAL] DATABASE_URL is not set!\n"
+        "Set it in Render dashboard → Environment → DATABASE_URL\n"
+        "Value: get your POOLER connection string from:\n"
+        "https://supabase.com/dashboard/project/djgueupzzzphzznkqrbr/settings/database\n"
+        "(Scroll to 'Connection pooling', copy port-6543 URL)\n"
+    )
 
-print(f"[config] DATABASE_URL host: {urlparse(DATABASE_URL).hostname}")
+# Detect the IPv6 direct-connection URL — CANNOT auto-fix (region is unknown)
+if (
+    f"db.{SUPABASE_PROJECT_REF}.supabase.co" in raw_db_url
+    and "pooler.supabase.com" not in raw_db_url
+):
+    print(
+        "\n[config] FATAL: DATABASE_URL is using the Supabase DIRECT connection\n"
+        "         which resolves to IPv6. Render free tier does NOT support IPv6.\n"
+        "         FIX: Go to https://supabase.com/dashboard/project/djgueupzzzphzznkqrbr/settings/database\n"
+        "              Scroll to 'Connection pooling' → copy the Connection string (port 6543)\n"
+        "              Then go to Render dashboard → Environment → update DATABASE_URL\n"
+        "         The pooler URL looks like:\n"
+        "         postgresql://postgres.djgueupzzzphzznkqrbr:<pwd>@aws-0-<REGION>.pooler.supabase.com:6543/postgres\n"
+    )
+    # Keep using it anyway so other routes still work — only DB calls will fail
+    DATABASE_URL = _clean_db_url(raw_db_url)
+else:
+    # Strip pgbouncer=true (psycopg2-incompatible) and fix scheme
+    DATABASE_URL = _clean_db_url(raw_db_url)
+
+print(f"[config] DATABASE_URL host: {urlparse(DATABASE_URL).hostname}:{urlparse(DATABASE_URL).port}")
 
 # JWT
 raw_jwt_secret = os.getenv("JWT_SECRET", "").strip()
