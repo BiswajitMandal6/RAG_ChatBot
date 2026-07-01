@@ -1,6 +1,12 @@
 from celery import Celery
 from config import REDIS_URL
 
+if not REDIS_URL:
+    raise RuntimeError(
+        "Redis is not configured (REDIS_URL env var is missing or invalid). "
+        "The crawler feature requires Redis. Set REDIS_URL in your Render environment."
+    )
+
 celery_app = Celery(
     "rag_crawler",
     broker=REDIS_URL,

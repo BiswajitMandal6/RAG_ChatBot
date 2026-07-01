@@ -1,10 +1,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import (
-    create_engine, Column, String, Boolean,
+from sqlalchemy import create_engine, Column, String, Boolean, \
     DateTime, Integer, Text, Enum, ForeignKey, Date, JSON
-)
+from sqlalchemy.pool import NullPool
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import enum
@@ -21,7 +20,16 @@ _SessionLocal = None
 def get_engine():
     global _engine
     if _engine is None:
-        _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        _engine = create_engine(
+            DATABASE_URL,
+            # NullPool: required for PgBouncer transaction mode (Supabase pooler).
+            # It disables SQLAlchemy's connection pool so every request opens/closes
+            # its own connection via PgBouncer, which is the correct pattern.
+            poolclass=NullPool,
+            # pool_pre_ping has no effect with NullPool but kept for safety if
+            # someone switches to a different pool class later.
+            pool_pre_ping=True,
+        )
     return _engine
 
 def get_session():

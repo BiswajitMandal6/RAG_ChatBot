@@ -19,10 +19,20 @@ services:
         value: changeme
       - key: PINECONE_INDEX
         value: college-rag
+      # -----------------------------------------------------------------------
+      # IMPORTANT: Use Supabase PgBouncer pooler URL (IPv4-compatible).
+      # Render free tier does NOT support IPv6. The direct connection URL
+      # (db.*.supabase.co:5432) uses IPv6 and will FAIL. Use the pooler URL below.
+      # User format for pooler: postgres.<project-ref>:<password>
+      # -----------------------------------------------------------------------
       - key: DATABASE_URL
-        value: changeme
+        value: "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
+      # -----------------------------------------------------------------------
+      # Set a real REDIS_URL if you have Redis (e.g., Upstash free tier).
+      # Leave as 'disabled' to run without the crawler feature.
+      # -----------------------------------------------------------------------
       - key: REDIS_URL
-        value: changeme
+        value: disabled
       - key: DOCUMENTS_PATH
         value: /tmp/documents
       - key: JWT_ALGORITHM
@@ -50,9 +60,9 @@ services:
       - key: PINECONE_INDEX
         value: college-rag
       - key: DATABASE_URL
-        value: changeme
+        value: "postgresql://postgres.djgueupzzzphzznkqrbr:Biswajit%407411@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
       - key: REDIS_URL
-        value: changeme
+        value: disabled
       - key: DOCUMENTS_PATH
         value: /tmp/documents
       - key: LLM_MODEL

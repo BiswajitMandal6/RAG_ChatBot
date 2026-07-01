@@ -5,12 +5,12 @@ completely independent from the FastAPI server.
 """
 
 import json
-import redis
 import asyncio
 import sys
-from celery_app import celery_app
+from celery_app import celery_app  # Will raise RuntimeError if Redis not configured
 from web_crawler import crawl_url_sync
 from config import REDIS_URL
+import redis
 
 
 # Windows requires ProactorEventLoop for Playwright subprocess support
